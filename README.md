@@ -1,2 +1,2 @@
-## e-Sport Discord Bot
+## escord Bot
 
