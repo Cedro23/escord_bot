@@ -1,8 +1,23 @@
 'use strict';
 
+// file system
+const fs = require('fs');
+
 // Discord
 const Discord = require('discord.js');
 const client = new Discord.Client();
+
+// Commands
+client.commands = new Discord.Collection();
+const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles) {
+    const command = require(`./commands/${file}`);
+    client.commands.set(command.name, command);
+}
+// Cooldowns
+const cooldowns = new Discord.Collection();
+
 
 // Env variables
 const dotenv = require('dotenv');
@@ -21,35 +36,54 @@ client.on('message', message => {
     if (!message.content.startsWith(prefix) || message.author.bot) return;
 
     const args = message.content.slice(prefix.length).split(/ +/);
-    const command = args.shift().toLowerCase(); // Takes the first argument which is the command name
+    const commandName = args.shift().toLowerCase(); // Takes the first argument which is the command name
 
-    if (command === 'avatar') {
-        if (args[0]) {
-            const user = getUserFromMention(args[0]);
-            if (!user) {
-                return message.reply('Please use a proper mention if you want to see someone else\'s avatar.');
-            }
+    if (!client.commands.has(commandName)) return;
 
-            return message.channel.send(`${user.username}'s avatar: ${user.displayAvatarURL()}`);
+    const command = client.commands.get(commandName); // Gets the command name
+
+    // Checks if command needs arguments. If so, checks if there are any
+    if (command.args && !args.length) {
+        let reply = `You didn't provide any arguments, ${message.author}!`;
+
+        if (command.usage) {
+            reply += `\nThe proper usage would be: \`${prefix}${command.name} ${command.usage}\``;
         }
 
-        return message.channel.send(`${message.author.username}, your avatar: ${message.author.displayAvatarURL()}`);
+        return message.channel.send(reply);
     }
+
+    // Checks cooldowns
+    if (!cooldowns.has(command.name)) {
+        cooldowns.set(command.name, new Discord.Collection());
+    }
+
+    const now = Date.now();
+    const timestamps = cooldowns.get(command.name);
+    const cooldownAmount = (command.cooldown || 3) * 1000;
+
+    if (timestamps.has(message.author.id)) {
+        const expirationTime = timestamps.get(message.author.id) + cooldownAmount;
+
+        if (now < expirationTime) {
+            const timeLeft = (expirationTime - now) / 1000;
+            return message.reply(`please wait ${timeLeft.toFixed(1)} more second(s) before reusing the \`${command.name}\` command.`);
+        }
+    }
+
+    timestamps.set(message.author.id, now);
+    setTimeout(() => timestamps.delete(message.author.id), cooldownAmount);
+
+    try {
+        command.execute(message, args);
+    } catch (error) {
+        console.error(error);
+        message.reply('There was an error trying to execute that command!');
+    }
+
 });
 
 client.login(botAuthToken);
 
 
-function getUserFromMention(mention) {
-    if (!mention) return;
 
-    if (mention.startsWith('<@') && mention.endsWith('>')) {
-        mention = mention.slice(2, -1);
-
-        if (mention.startsWith('!')) {
-            mention = mention.slice(1);
-        }
-
-        return client.users.get(mention);
-    }
-}
