@@ -7,6 +7,7 @@ const fs = require('fs');
 const Discord = require('discord.js');
 const client = new Discord.Client();
 
+
 // Commands
 client.commands = new Discord.Collection();
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
@@ -18,7 +19,6 @@ for (const file of commandFiles) {
 // Cooldowns
 const cooldowns = new Discord.Collection();
 
-
 // Env variables
 const dotenv = require('dotenv');
 dotenv.config();
@@ -27,6 +27,8 @@ dotenv.config();
 const botAuthToken = process.env.BOT_AUTH_TOKEN;
 const prefix = process.env.PREFIX;
 
+
+// Core of the bot
 client.once('ready', () => {
     console.log('Ready!');
 });
@@ -75,7 +77,7 @@ client.on('message', message => {
     setTimeout(() => timestamps.delete(message.author.id), cooldownAmount);
 
     try {
-        command.execute(message, args);
+        command.execute(client, message, args);
     } catch (error) {
         console.error(error);
         message.reply('There was an error trying to execute that command!');
@@ -84,6 +86,3 @@ client.on('message', message => {
 });
 
 client.login(botAuthToken);
-
-
-
